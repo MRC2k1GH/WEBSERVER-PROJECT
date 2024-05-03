@@ -1,0 +1,278 @@
+version: '3.8'
+
+volumes:
+  db_data_master:
+  db_data_slave:
+  esdata:
+  esdata2:
+  esdata3:
+  grafana-data:
+  metricbeat-data01:
+  wp-content:
+  logs:
+
+services:
+  
+  # Database Master
+  db_master:
+    image: mysql:latest
+    container_name: db_master
+    volumes:
+      - db_data_master:/var/lib/mysql
+      - ./master.cnf:/etc/mysql/conf.d/my.cnf
+      - logs:/var/log/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    ports:
+    - '3307:3306'
+    networks:
+      - wpsite
+
+  
+    #Database Slave
+  db-slave:
+    image: mysql:latest
+    container_name: db-slave
+    volumes:
+     - db_data_slave:/var/lib/mysql
+     - ./slave.cnf:/etc/mysql/conf.d/my.cnf
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: wordpress
+      MYSQL_MASTER_HOST: db_master
+      MYSQL_MASTER_ROOT_PASSWORD: password
+    ports:
+    - '3308:3306'
+    networks:
+      - wpsite
+
+  # Wordpress Main
+  wordpress_1:
+    image: wordpress:latest
+    container_name: wordpress_1
+    ports:
+      - '8081:80'
+    restart: always
+    volumes:
+      - wp-content:/var/www/html/wp-content
+      - ./apache2.conf:/etc/apache2/apache2.conf
+      - "./.htaccess:/var/www/html/.htaccess"
+      - logs:/var/log/apache2
+
+    environment:
+      WORDPRESS_DB_HOST: haproxy
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DATABASE: wordpress
+    networks:
+      - wpsite
+
+# Wordpress backup 1
+  wordpress_2:
+    image: wordpress:latest
+    container_name: wordpress_2
+    ports:
+      - '8082:80'
+    restart: always
+    volumes:
+      - wp-content:/var/www/html/wp-content
+      - ./apache2.conf:/etc/apache2/apache2.conf
+      - "./.htaccess:/var/www/html/.htaccess"
+      - logs:/var/log/apache2
+    environment:
+      WORDPRESS_DB_HOST: haproxy
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DATABASE: wordpress
+    networks:
+      - wpsite
+
+
+# Wordpress backup 2
+  wordpress_3:
+    image: wordpress:latest
+    container_name: wordpress_3
+    ports:
+      - '8083:80'
+    restart: always
+    volumes:
+      - wp-content:/var/www/html/wp-content
+      - ./apache2.conf:/etc/apache2/apache2.conf
+      - "./.htaccess:/var/www/html/.htaccess"
+      - logs:/var/log/apache2
+    environment:
+      WORDPRESS_DB_HOST: haproxy
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DATABASE: wordpress
+    networks:
+      - wpsite
+
+# Database Load Balancer
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - logs:/var/log/haproxy.log
+    ports:
+      - "3306:3306"
+      - "9999:9999"
+      - "14567:14567"
+    networks:
+      - wpsite
+
+# Webservers Load Balancer
+  nginx:
+    image: mailer21/nginx-sticky-vts
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - logs:/var/log/nginx
+    ports:
+      - "80:80"
+    networks:
+      - wpsite
+
+# PHPMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pma
+    links:
+      - db_master
+    environment:
+      PMA_HOST: db_master
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    restart: always
+    ports:
+      - 8085:80
+    networks:
+      - wpsite
+
+# Elasticsearch 1
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    container_name: elasticsearch
+    environment:
+      - cluster.name=es_cluster
+      - node.name=elasticsearch
+      - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
+      - xpack.security.enabled=false
+      - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
+      - discovery.seed_hosts=elasticsearch2,elasticsearch3
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - wpsite
+
+# Elasticsearch 2
+  elasticsearch2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    container_name: elasticsearch2
+    environment:
+      - cluster.name=es_cluster
+      - node.name=elasticsearch2
+      - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
+      - xpack.security.enabled=false
+      - discovery.seed_hosts=elasticsearch,elasticsearch3
+      - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
+    volumes:
+      - esdata2:/usr/share/elasticsearch/data
+    networks:
+      - wpsite
+
+# Elasticsearch 3
+  elasticsearch3:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    container_name: elasticsearch3
+    environment:
+      - cluster.name=es_cluster
+      - node.name=elasticsearch3
+      - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
+      - xpack.security.enabled=false
+      - discovery.seed_hosts=elasticsearch,elasticsearch2
+      - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
+    volumes:
+      - esdata3:/usr/share/elasticsearch/data
+    networks:
+      - wpsite
+
+# Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.2
+    container_name: logstash
+    environment:
+      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5000:5000"
+    depends_on:
+      - elasticsearch
+    networks:
+      - wpsite
+
+# Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.2
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./kibana.yml:/etc/kibana/kibana.yml
+    networks:
+      - wpsite
+
+# Filebeat
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.13.2
+    container_name: filebeat
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - logs:/var/logs/INPUTS
+    command: filebeat -e -strict.perms=false
+    networks:
+      - wpsite
+
+# Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - wpsite
+      
+# Metricbeat
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.13.2
+    container_name: metricbeat
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    user: root
+    volumes:
+      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - metricbeat-data01:/usr/share/metricbeat/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - wpsite
+
+networks:
+  wpsite:

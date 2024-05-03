@@ -1,0 +1,42 @@
+filebeat.config:
+  modules:
+    path: ${path.config}/modules.d/*.yml
+    reload.enabled: false
+
+filebeat.inputs:
+
+- type: filestream
+  id: apache
+  paths:
+    -/var/logs/INPUTS/access.log
+    -/var/logs/INPUTS/error.log
+  fields:
+    apache: true
+
+- type: filestream
+  id: mysql
+  paths:
+    -/var/logs/INPUTS/mysql.log
+    -//var/logs/INPUTS/mysql-slow.log
+  fields:
+    mysql: true
+
+- type: filestream
+  id: nginx
+  paths:
+    -/var/logs/INPUTS/web.access.log
+    -/var/logs/INPUTS/web.error.log
+  fields:
+    nginx: true
+
+- type: filestream
+  id: haproxy
+  paths:
+    -/var/logs/INPUTS/haproxy.log
+  fields:
+    haproxy: true
+
+output.elasticsearch:
+  hosts: ['elasticsearch']
+setup.kibana:
+  host: ["kibana:5601"]
