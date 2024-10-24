@@ -1,4 +1,5 @@
 [mysqld]
+log_error=/var/log/mysql/mysql_error.log
 default_authentication_plugin=mysql_native_password
 server-id=1
 log-bin=mysql-bin

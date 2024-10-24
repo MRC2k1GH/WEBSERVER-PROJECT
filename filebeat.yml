@@ -3,40 +3,46 @@ filebeat.config:
     path: ${path.config}/modules.d/*.yml
     reload.enabled: false
 
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+
+filebeat.modules:
+- module: apache
+  access:
+    enabled: true
+    var.paths: ["/var/log/INPUTS/apache/access.log*"]
+  error:
+    enabled: true
+    var.paths: ["/var/log/INPUTS/apache/error.log*"]
+
+- module: mysql
+  error:
+    enabled: true
+    var.paths: ["/var/log/INPUTS/mysql/mysql_error.log*"]
+
+- module: nginx
+  access:
+    enabled: true
+    var.paths: ["/var/log/INPUTS/nginx/access.log*"]
+  error:
+    enabled: true
+    var.paths: ["/var/log/INPUTS/nginx/web.error.log*"]
+
 filebeat.inputs:
 
 - type: filestream
-  id: apache
+  id: all
+  enabled: true
   paths:
-    -/var/logs/INPUTS/access.log
-    -/var/logs/INPUTS/error.log
-  fields:
-    apache: true
+    -/var/log/INPUTS/*.log
 
-- type: filestream
-  id: mysql
-  paths:
-    -/var/logs/INPUTS/mysql.log
-    -//var/logs/INPUTS/mysql-slow.log
-  fields:
-    mysql: true
+processors:
+  - add_docker_metadata: ~
+  - add_cloud_metadata: ~
 
-- type: filestream
-  id: nginx
-  paths:
-    -/var/logs/INPUTS/web.access.log
-    -/var/logs/INPUTS/web.error.log
-  fields:
-    nginx: true
-
-- type: filestream
-  id: haproxy
-  paths:
-    -/var/logs/INPUTS/haproxy.log
-  fields:
-    haproxy: true
-
-output.elasticsearch:
-  hosts: ['elasticsearch']
+output.logstash:
+  hosts: ["logstash:5044"]
 setup.kibana:
-  host: ["kibana:5601"]
+  host: "kibana:5601"

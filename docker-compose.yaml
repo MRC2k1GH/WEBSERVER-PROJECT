@@ -8,8 +8,9 @@ volumes:
   esdata3:
   grafana-data:
   metricbeat-data01:
+  filebeat:
   wp-content:
-  logs:
+  logstash:
 
 services:
   
@@ -20,13 +21,13 @@ services:
     volumes:
       - db_data_master:/var/lib/mysql
       - ./master.cnf:/etc/mysql/conf.d/my.cnf
-      - logs:/var/log/mysql
+      - ./mysql_logs:/var/log/mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
-      MYSQL_PASSWORD: wordpress
+      MYSQL_USER: REPLACEME
+      MYSQL_PASSWORD: REPLACEME
     ports:
     - '3307:3306'
     networks:
@@ -42,10 +43,10 @@ services:
      - ./slave.cnf:/etc/mysql/conf.d/my.cnf
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: REPLACEME
       MYSQL_DATABASE: wordpress
       MYSQL_MASTER_HOST: db_master
-      MYSQL_MASTER_ROOT_PASSWORD: password
+      MYSQL_MASTER_ROOT_PASSWORD: REPLACEME
     ports:
     - '3308:3306'
     networks:
@@ -62,12 +63,11 @@ services:
       - wp-content:/var/www/html/wp-content
       - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
-      - logs:/var/log/apache2
-
+      - ./apache_logs:/var/log/apache2
     environment:
       WORDPRESS_DB_HOST: haproxy
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_USER: REPLACEME
+      WORDPRESS_DB_PASSWORD: REPLACEME
       WORDPRESS_DATABASE: wordpress
     networks:
       - wpsite
@@ -83,11 +83,11 @@ services:
       - wp-content:/var/www/html/wp-content
       - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
-      - logs:/var/log/apache2
+      - ./apache_logs:/var/log/apache2
     environment:
       WORDPRESS_DB_HOST: haproxy
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_USER: REPLACEME
+      WORDPRESS_DB_PASSWORD: REPLACEME
       WORDPRESS_DATABASE: wordpress
     networks:
       - wpsite
@@ -104,11 +104,11 @@ services:
       - wp-content:/var/www/html/wp-content
       - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
-      - logs:/var/log/apache2
+      - ./apache_logs:/var/log/apache2
     environment:
       WORDPRESS_DB_HOST: haproxy
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_USER: REPLACEME
+      WORDPRESS_DB_PASSWORD: REPLACEME
       WORDPRESS_DATABASE: wordpress
     networks:
       - wpsite
@@ -119,11 +119,11 @@ services:
     container_name: haproxy
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
-      - logs:/var/log/haproxy.log
     ports:
       - "3306:3306"
       - "9999:9999"
       - "14567:14567"
+      - "8405:8405"
     networks:
       - wpsite
 
@@ -133,7 +133,7 @@ services:
     container_name: nginx
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - logs:/var/log/nginx
+      - ./nginx_logs:/var/log/nginx
     ports:
       - "80:80"
     networks:
@@ -213,9 +213,8 @@ services:
     environment:
       LS_JAVA_OPTS: "-Xmx512m -Xms512m"
     volumes:
-      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-    ports:
-      - "5000:5000"
+      - logstash:/usr/share/logstash/data
+      - ./pipeline.conf:/usr/share/logstash/pipeline/logstash.conf
     depends_on:
       - elasticsearch
     networks:
@@ -242,10 +241,34 @@ services:
     container_name: filebeat
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    user: root
     volumes:
-      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml
-      - logs:/var/logs/INPUTS
-    command: filebeat -e -strict.perms=false
+      - filebeat:/usr/share/filebeat/data
+      - "./filebeat.yml:/usr/share/filebeat/filebeat.yml"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers/:/var/lib/docker/containers/
+      - /var/log/:/var/log/
+      - ./apache_logs:/var/log/INPUTS/apache
+      - ./nginx_logs:/var/log/INPUTS/nginx
+      - ./mysql_logs:/var/log/INPUTS/mysql
+    command:
+      - "-e"
+    ports:
+      - 5044:5044
+    networks:
+      - wpsite
+
+# Metricbeat
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.13.2
+    container_name: metricbeat
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    user: root
+    volumes:
+      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - metricbeat-data01:/usr/share/metricbeat/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - wpsite
 
@@ -259,18 +282,169 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - wpsite
-      
-# Metricbeat
-  metricbeat:
-    image: docker.elastic.co/beats/metricbeat:8.13.2
-    container_name: metricbeat
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-    user: root
+
+#Prometheus
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
     volumes:
-      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
-      - metricbeat-data01:/usr/share/metricbeat/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    networks:
+    - wpsite
+  
+#Elasticsearch Exporter to Prometheus
+  elasticsearch_exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
+    container_name: elasticsearch_exporter
+    command:
+     - '--es.uri=http://elasticsearch:9200'
+    restart: always
+    ports:
+    - "9114:9114"
+    networks:
+      - wpsite
+
+#Apache Exporter 1, 2, 3
+  apache_exporter1:
+    image: lusotycoon/apache-exporter
+    container_name: apache_exporter1
+    privileged: true
+    ports:
+    - "9117:9117"
+    restart: unless-stopped
+    entrypoint: /bin/apache_exporter  --scrape_uri="http://wordpress_1/server-status"
+    networks:
+      - wpsite
+
+  apache_exporter2:
+    image: lusotycoon/apache-exporter
+    container_name: apache_exporter2
+    privileged: true
+    ports:
+    - "9118:9117"
+    restart: unless-stopped
+    entrypoint: /bin/apache_exporter  --scrape_uri="http://wordpress_2/server-status"
+    networks:
+      - wpsite
+
+  apache_exporter3:
+    image: lusotycoon/apache-exporter
+    container_name: apache_exporter3
+    privileged: true
+    ports:
+    - "9119:9117"
+    restart: unless-stopped
+    entrypoint: /bin/apache_exporter  --scrape_uri="http://wordpress_3/server-status"
+    networks:
+      - wpsite
+
+#Nginx Exporter
+  nginx-prometheus-exporter:
+    image: nginx/nginx-prometheus-exporter:1.1.0
+    container_name: nginx_exporter
+    restart: always
+    command:
+      - --nginx.scrape-uri=http://nginx/metrics
+    ports:
+      - "9113:9113"
+    networks:
+      - wpsite
+
+#MYSQL Exporter
+  mysqlexporter:
+    image: quay.io/prometheus/mysqld-exporter
+    container_name: mysql_exporter
+    ports: 
+    - "9104:9104"
+    command:
+     - "--mysqld.username=root:password"
+     - "--mysqld.address=db_master:3306"
+    networks:
+      - wpsite
+
+#Icinga 2
+  icinga2:
+    image: jordan/icinga2
+    restart: on-failure:5
+    hostname: icinga2
+    env_file:
+      - secrets_sql.env
+    environment:
+      - ICINGA2_FEATURE_GRAPHITE=1
+      - ICINGA2_FEATURE_GRAPHITE_HOST=graphite
+      - ICINGA2_FEATURE_GRAPHITE_PORT=2003
+      - ICINGA2_FEATURE_GRAPHITE_URL=http://graphite
+      - DEFAULT_MYSQL_HOST=mysql
+    volumes:
+      - ./icinga2_docker.conf:/etc/icinga2
+      - ./data/icinga/cache:/var/cache/icinga2
+      - ./data/icinga/certs:/etc/apache2/ssl
+      - ./data/icinga/etc/icinga2:/etc/icinga2
+      - ./data/icinga/etc/icingaweb2:/etc/icingaweb2
+      - ./data/icinga/lib/icinga:/var/lib/icinga2
+      - ./data/icinga/lib/php/sessions:/var/lib/php/sessions
+      - ./data/icinga/log/apache2:/var/log/apache2
+      - ./data/icinga/log/icinga2:/var/log/icinga2
+      - ./data/icinga/log/icingaweb2:/var/log/icingaweb2
+      - ./data/icinga/log/mysql:/var/log/mysql
+      - ./data/icinga/spool:/var/spool/icinga2
+      - ./data/icinga/cron.d/icinga:/etc/cron.d/icinga
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers/:/var/lib/docker/containers/
+      - ./docker_checks.sh:/var/lib/nagios/plugins/docker_checks.sh
+    ports:
+      - "90:80"
+      - "5665:5665"
+    networks:
+      - wpsite
+
+  graphite:
+    image: graphiteapp/graphite-statsd:latest
+    container_name: graphite
+    restart: on-failure:5
+    hostname: graphite
+    volumes:
+      - ./data/graphite/conf:/opt/graphite/conf
+      - ./data/graphite/storage:/opt/graphite/storage
+      - ./data/graphite/log/graphite:/var/log/graphite
+      - ./data/graphite/log/carbon:/var/log/carbon
+    networks:
+      - wpsite
+  
+  mysql:
+    image: mariadb
+    container_name: mysql
+    env_file:
+      - secrets_sql.env
+    volumes:
+      - ./data/mysql/data:/var/lib/mysql
+    networks:
+      - wpsite
+
+#Uptime Kuma
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    volumes:
+      - ./uptime-kuma-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers/:/var/lib/docker/containers/
+    ports:
+      - 3001:3001  
+    restart: always
+    networks:
+      - wpsite
+
+#Cloudflare Tunnel
+  tunnel:
+    container_name: cloudflared-tunnel
+    image: cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=REPLACEME
     networks:
       - wpsite
 
