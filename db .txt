@@ -1,1 +1,0 @@
-ALTER USER 'replication_user'@'%' IDENTIFIED WITH mysql_native_password BY 'password';
