@@ -1,4 +1,5 @@
 **High Availability WordPress Blog**
+
 This project demonstrates a highly available WordPress setup designed for robust performance, monitoring, and fault tolerance. It utilizes a distributed architecture with multiple web servers, databases, load balancers, and monitoring tools.
 
 Architecture Overview
