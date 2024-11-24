@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metricbeat-config
+data:
+  metricbeat.yml: |
+    metricbeat.modules:
+    - module: system
+      period: 10s
+      metricsets:
+        - cpu
+        - memory
+        - network
+    output.elasticsearch:
+      hosts: ["elasticsearch:9200"]
