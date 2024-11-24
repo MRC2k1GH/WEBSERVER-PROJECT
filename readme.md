@@ -1,4 +1,4 @@
-**High Availability WordPress Blog**
+**High Availability WordPress Blog - WIP**
 
 This project demonstrates a highly available WordPress setup designed for robust performance, monitoring, and fault tolerance. It utilizes a distributed architecture with multiple web servers, databases, load balancers, and monitoring tools.
 
@@ -27,8 +27,6 @@ Grafana: Visualizes the metrics collected by Prometheus.
 Icinga2: Ensures system health and sends alerts in case of issues.
 Uptime Kuma: Provides uptime monitoring for services and endpoints.
 5. **Cloudflare Tunnel**
-The WordPress web servers use Cloudflare Tunnels to securely route traffic through Cloudflare, providing additional layers of security and DDoS protection.
+The WordPress web servers use Cloudflare Tunnels to securely route traffic through Cloudflare, providing additional layers of security.
 6. **Terraform Automation**
-Terraform is used to automate the following:
-DNS record management.
-Cloudflare tunnel configuration.
+Terraform is used to automate the DNS record management and Cloudflare tunnel configuration.
