@@ -1,0 +1,11 @@
+mysql_logs/
+nginx_logs/
+other_logs/
+elasticsearch-certs/
+data/
+uptime-kuma-data/
+generate-certs-auto.ps1
+generate-certs.bat
+generate-certs.ps1
+generate-certs.sh
+GROK_PATTERNS_README.md

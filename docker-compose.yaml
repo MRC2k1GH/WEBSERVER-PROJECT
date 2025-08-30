@@ -54,14 +54,15 @@ services:
 
   # Wordpress Main
   wordpress_1:
-    image: wordpress:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.wordpress
     container_name: wordpress_1
     ports:
       - '8081:80'
     restart: always
     volumes:
       - wp-content:/var/www/html/wp-content
-      - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
       - ./apache_logs:/var/log/apache2
     environment:
@@ -74,14 +75,15 @@ services:
 
 # Wordpress backup 1
   wordpress_2:
-    image: wordpress:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.wordpress
     container_name: wordpress_2
     ports:
       - '8082:80'
     restart: always
     volumes:
       - wp-content:/var/www/html/wp-content
-      - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
       - ./apache_logs:/var/log/apache2
     environment:
@@ -95,14 +97,15 @@ services:
 
 # Wordpress backup 2
   wordpress_3:
-    image: wordpress:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.wordpress
     container_name: wordpress_3
     ports:
       - '8083:80'
     restart: always
     volumes:
       - wp-content:/var/www/html/wp-content
-      - ./apache2.conf:/etc/apache2/apache2.conf
       - "./.htaccess:/var/www/html/.htaccess"
       - ./apache_logs:/var/log/apache2
     environment:
@@ -155,7 +158,7 @@ services:
     networks:
       - wpsite
 
-# Elasticsearch 1
+  # Elasticsearch 1
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
     container_name: elasticsearch
@@ -163,14 +166,22 @@ services:
       - cluster.name=es_cluster
       - node.name=elasticsearch
       - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.transport.ssl.keystore.password=elastic
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.http.ssl.keystore.password=elastic
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - ELASTIC_PASSWORD=pass
       - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
       - discovery.seed_hosts=elasticsearch2,elasticsearch3
-    ports:
-      - "9200:9200"
-      - "9300:9300"
     volumes:
       - esdata:/usr/share/elasticsearch/data
+      - ./elasticsearch-certs:/usr/share/elasticsearch/config/certs
     networks:
       - wpsite
 
@@ -182,11 +193,22 @@ services:
       - cluster.name=es_cluster
       - node.name=elasticsearch2
       - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.transport.ssl.keystore.password=elastic
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.http.ssl.keystore.password=elastic
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - ELASTIC_PASSWORD=pass
       - discovery.seed_hosts=elasticsearch,elasticsearch3
       - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
     volumes:
       - esdata2:/usr/share/elasticsearch/data
+      - ./elasticsearch-certs:/usr/share/elasticsearch/config/certs
     networks:
       - wpsite
 
@@ -198,11 +220,22 @@ services:
       - cluster.name=es_cluster
       - node.name=elasticsearch3
       - "ES_JAVA_OPTS=-Xmx1024m -Xms1024m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.transport.ssl.keystore.password=elastic
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/certs/elastic-certificates.p12
+      - xpack.security.http.ssl.keystore.password=elastic
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+      - ELASTIC_PASSWORD=pass
       - discovery.seed_hosts=elasticsearch,elasticsearch2
       - cluster.initial_master_nodes=elasticsearch,elasticsearch2,elasticsearch3
     volumes:
       - esdata3:/usr/share/elasticsearch/data
+      - ./elasticsearch-certs:/usr/share/elasticsearch/config/certs
     networks:
       - wpsite
 
@@ -210,11 +243,11 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.13.2
     container_name: logstash
-    environment:
-      LS_JAVA_OPTS: "-Xmx512m -Xms512m"
     volumes:
+      - ./logstash.yml:/usr/share/logstash/config/logstash.yml
       - logstash:/usr/share/logstash/data
-      - ./pipeline.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./elasticsearch-certs:/usr/share/logstash/config/certs
     depends_on:
       - elasticsearch
     networks:
@@ -225,13 +258,16 @@ services:
     image: docker.elastic.co/kibana/kibana:8.13.2
     container_name: kibana
     environment:
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: /usr/share/logstash/config/certs/ca.crt
     ports:
       - "5601:5601"
     depends_on:
       - elasticsearch
+      - elasticsearch2
+      - elasticsearch3
     volumes:
       - ./kibana.yml:/etc/kibana/kibana.yml
+      - ./elasticsearch-certs:/usr/share/logstash/config/certs
     networks:
       - wpsite
 
@@ -239,8 +275,6 @@ services:
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.13.2
     container_name: filebeat
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     user: root
     volumes:
       - filebeat:/usr/share/filebeat/data
@@ -248,13 +282,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/containers/:/var/lib/docker/containers/
       - /var/log/:/var/log/
-      - ./apache_logs:/var/log/INPUTS/apache
-      - ./nginx_logs:/var/log/INPUTS/nginx
-      - ./mysql_logs:/var/log/INPUTS/mysql
-    command:
-      - "-e"
-    ports:
-      - 5044:5044
+      - ./apache_logs:/usr/share/filebeat/apache_logs:ro
+      - ./nginx_logs:/usr/share/filebeat/nginx_logs:ro
+      - ./mysql_logs:/usr/share/filebeat/mysql_logs:ro
+      - ./other_logs:/usr/share/filebeat/other_logs:ro
+    command: filebeat -e -strict.perms=false
+    depends_on:
+      - logstash
     networks:
       - wpsite
 
@@ -262,13 +296,18 @@ services:
   metricbeat:
     image: docker.elastic.co/beats/metricbeat:8.13.2
     container_name: metricbeat
+    command: metricbeat -e -strict.perms=false
     environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS= '["https://elasticsearch:9200","https://elasticsearch:9201","https://elasticsearch:9202"]'
+      - ELASTICSEARCH_USERNAME= elastic
+      - ELASTICSEARCH_PASSWORD= pass
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES= /usr/share/metricbeat/config/certs/ca.crt
     user: root
     volumes:
       - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
       - metricbeat-data01:/usr/share/metricbeat/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./elasticsearch-certs:/usr/share/metricbeat/config/certs
     networks:
       - wpsite
 
@@ -299,7 +338,8 @@ services:
     image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
     container_name: elasticsearch_exporter
     command:
-     - '--es.uri=http://elasticsearch:9200'
+     - '--es.uri=https://elastic:pass@elasticsearch:9200'
+     - '--es.ssl-skip-verify'
     restart: always
     ports:
     - "9114:9114"

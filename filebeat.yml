@@ -12,31 +12,57 @@ filebeat.modules:
 - module: apache
   access:
     enabled: true
-    var.paths: ["/var/log/INPUTS/apache/access.log*"]
+    var.paths: ["/usr/share/filebeat/apache_logs/access.log*"] #
+    fields:
+      log_type: apache_access
   error:
     enabled: true
-    var.paths: ["/var/log/INPUTS/apache/error.log*"]
+    var.paths: ["/usr/share/filebeat/apache_logs/error.log*"]
+    fields:
+      log_type: apache_error
 
 - module: mysql
   error:
     enabled: true
-    var.paths: ["/var/log/INPUTS/mysql/mysql_error.log*"]
+    var.paths: ["/usr/share/filebeat/mysql_logs/error.log*"]
+    fields:
+      log_type: mysql_error
+  slowlog:
+    enabled: true
+    var.paths: ["/usr/share/filebeat/mysql_logs/mysql_slow.log*"]
+    fields:
+      log_type: mysql_slow
 
 - module: nginx
   access:
     enabled: true
-    var.paths: ["/var/log/INPUTS/nginx/access.log*"]
+    var.paths: ["/usr/share/filebeat/nginx_logs/web.access.log*"]
+    fields:
+      log_type: nginx_access
   error:
     enabled: true
-    var.paths: ["/var/log/INPUTS/nginx/web.error.log*"]
+    var.paths: ["/usr/share/filebeat/nginx_logs/web.error.log*"]
+    fields:
+      log_type: nginx_error
 
 filebeat.inputs:
-
 - type: filestream
-  id: all
+  id: mysql_general
   enabled: true
   paths:
-    -/var/log/INPUTS/*.log
+    - /usr/share/filebeat/mysql_logs/mysql_general.log*
+  fields:
+    log_type: mysql_general
+  fields_under_root: true
+
+- type: filestream
+  id: generic_logs
+  enabled: true
+  paths:
+    - "/usr/share/filebeat/other_logs/*.log"
+  fields:
+    log_type: generic
+  fields_under_root: true
 
 processors:
   - add_docker_metadata: ~
@@ -44,5 +70,6 @@ processors:
 
 output.logstash:
   hosts: ["logstash:5044"]
+
 setup.kibana:
   host: "kibana:5601"

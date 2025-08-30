@@ -1,2 +1,4 @@
 server.host: "0.0.0.0"
-elasticsearch.hosts: ["elasticsearch"]
+elasticsearch.hosts: ["https://elasticsearch:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "password"

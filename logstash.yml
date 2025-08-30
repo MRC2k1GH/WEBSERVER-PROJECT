@@ -1,0 +1,12 @@
+# logstash.yml
+# Configure the management connection to use HTTPS for monitoring and license checks
+
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.hosts: ["https://elasticsearch:9200"]
+
+# Best practice is to use the built-in 'logstash_system' user for this
+xpack.monitoring.elasticsearch.username: "logstash_system"
+xpack.monitoring.elasticsearch.password: "password" # Use the password for the logstash_system user
+
+# Provide the CA certificate to establish a trusted SSL/TLS connection
+xpack.monitoring.elasticsearch.ssl.certificate_authority: "/usr/share/logstash/config/certs/ca.crt"

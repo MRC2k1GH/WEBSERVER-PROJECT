@@ -32,7 +32,7 @@ metricbeat.modules:
   enabled: true
   period: 10s
   metricsets: ["stat"]
-  hosts: ["http://haproxy:14567/stats)"]
+  hosts: ["http://haproxy:14567/stats"]
 
 - module: mysql
   enabled: true
@@ -44,13 +44,20 @@ metricbeat.modules:
   enabled: true
   period: 10s
   metricsets: ["status"]
-  hosts: ["http://wordpress_1/server-status)", "http://wordpress_2/server-status)", "http://wordpress_3/server-status)"]
+  hosts: ["http://wordpress_1/server-status", "http://wordpress_2/server-status", "http://wordpress_3/server-status"]
 
 processors:
   - add_cloud_metadata: ~
 
 output.elasticsearch:
-  hosts: ['elasticsearch']
+  hosts: ["https://elasticsearch:9200"]
+  username: "elastic"
+  password: "pass"
+  ssl.verification_mode: "none"
+
+# Comment out direct Elasticsearch output to ensure logs go through Logstash first
+# output.elasticsearch:
+#   hosts: ['elasticsearch']
 
 setup.kibana:
   host: "kibana:5601"
