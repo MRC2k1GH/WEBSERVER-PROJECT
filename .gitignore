@@ -1,4 +1,5 @@
 mysql_logs/
+apache_logs/
 nginx_logs/
 other_logs/
 elasticsearch-certs/
